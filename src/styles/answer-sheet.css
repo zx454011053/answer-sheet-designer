@@ -1,0 +1,1764 @@
+.answer-sheet-editor {
+  display: flex;
+  height: calc(100vh - 60px);
+  background: #f5f7fa;
+  position: relative;
+}
+
+.preview-section {
+  flex: 1;
+  min-width: 0;
+  background: #e8eaf6;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.preview-header {
+  padding: 16px 20px;
+  background: #fff;
+  border-bottom: 1px solid #e4e7ed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.preview-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.preview-header .el-button {
+  position: absolute;
+  left: 20px;
+}
+
+.preview-content {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  /* 不用 align-items: center 居中：纸张宽于可视区时，居中会让左侧溢出到滚动起点之外，
+     用户滚不到（1024 宽的笔记本上纸张左右各被裁掉一截）。改由 .preview-content-sheets 的
+     margin: 0 auto 居中，放得下才居中、放不下就贴左并整页可横向滚动。 */
+  align-items: stretch;
+}
+
+/* 试卷栈：与 PDF 导出根一致，边距在此层，避免 preview-content 滚动层含 padding 导致导出与版心不一致 */
+.preview-content-sheets {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 32px;
+  box-sizing: border-box;
+  width: max-content;
+  /* 不能限制成 100%：会把固定宽的纸张（A4 794px）挤成容器宽度再溢出，
+     导致纸张左右被裁切且没有横向滚动条 */
+  max-width: none;
+  margin: 0 auto;
+}
+
+/* A3 / 8K 横向纸张宽于视口时：左对齐并启用横向滚动 */
+.preview-content.preview-content--landscape-sheets {
+  align-items: flex-start;
+  overflow-x: auto;
+  overflow-y: auto;
+  cursor: grab;
+}
+
+.preview-content.preview-content--landscape-sheets .preview-content-sheets {
+  align-items: flex-start;
+}
+
+/* A4 竖版：保持居中排版，仅提示可按住拖动滚动（与 A3 横向 grab 一致） */
+.preview-content.preview-content--sheet-pan-grab {
+  cursor: grab;
+}
+
+.preview-content.preview-content--sheet-pan-dragging {
+  cursor: grabbing;
+}
+
+.sheet-preview {
+  width: 210mm;
+  height: 297mm;
+  background: #fff;
+  box-sizing: border-box;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.12);
+  position: relative;
+  flex-shrink: 0;
+  /* 绘制内容不超出纸张（与试题区 safe-area 可视边界一致） */
+  overflow: hidden;
+}
+
+/* A3 横向 420×297mm（长边水平） */
+.sheet-preview.sheet-preview-a3 {
+  width: 420mm;
+  height: 297mm;
+}
+
+/* 8K 横向 390×270mm（长边水平） */
+.sheet-preview.sheet-preview-8k {
+  width: 390mm;
+  height: 270mm;
+}
+
+/* A3 物理分栏：每栏独立 div + 独立 questions-section，不再使用 column-count */
+
+.sheet-preview.sheet-preview-a3-multicol .question-section-item {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .question-block:not(.question-block-answer):not(.question-block-chinese) {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .question-section-item.sheet-objective-title-only + .question-section-item.question-section-objective-merge-follow {
+  margin-top: 0;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .questions-section.sheet-a3-multicol-questions .question-section-item.question-section-objective-merge-follow + .question-section-item:not(.question-section-objective-merge-follow) {
+  margin-top: 12px;
+}
+
+.position-marker {
+  position: absolute;
+  background: #000;
+}
+
+/*
+ * 页码：绝对定位贴纸底，不参与流式布局，因此不影响分页账本。
+ * 纸底预留 5mm，落在定位块（距纸边 40px ≈ 10.6mm）之间的空白带内。
+ */
+.sheet-page-number {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 5mm;
+  text-align: center;
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  color: #000;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.top-left {
+  width: 24px;
+  height: 12px;
+  top: 40px;
+  left: 40px;
+}
+
+.top-right {
+  width: 24px;
+  height: 12px;
+  top: 40px;
+  right: 40px;
+}
+
+.bottom-left {
+  width: 12px;
+  height: 24px;
+  bottom: 40px;
+  left: 40px;
+}
+
+.bottom-right {
+  width: 12px;
+  height: 24px;
+  bottom: 40px;
+  right: 40px;
+}
+
+/*
+ * A4 试题绘制区：参考线相对整张纸（.sheet-preview），与四角 .position-marker 几何一致。
+ * 外线（蓝）= 定位块朝纸缘外角矩形：距纸边 40px（与 top-left 等 marker 一致）。
+ * 内线（红）= 相对外线与 A3 栏内相同的缩进：顶 +12px（横条高）、左右各 +24px、底 +24px（竖条方向占位）。
+ * 试题区内侧叠加层（含 1px 线宽避让），无底色。叠加层 pointer-events:none。
+ */
+.sheet-preview.sheet-preview-a4-draw .sheet-a4-questions-shell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: visible;
+}
+
+.sheet-preview.sheet-preview-a4-draw .sheet-a4-drawable-leader {
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+
+/* 试题区与顶区仍在 safe-area 内排版；safe-area 下边线与内线左/右/底对齐（见下方 A4 safe-area 覆盖） */
+.sheet-preview.sheet-preview-a4-draw .sheet-a4-questions-section {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  min-height: 0;
+  overflow: visible;
+}
+
+/* A4 首页：不再包裹 sheet-a4-questions-section，题块直接挂在 shell 下；尾占位条替代原内层 flex:1 */
+.sheet-preview.sheet-preview-a4-draw .sheet-a4-questions-shell--first-page-plain::after {
+  content: '';
+  flex: 1 1 0;
+  min-height: 0;
+  pointer-events: none;
+}
+
+.sheet-preview.sheet-preview-a4-draw .sheet-a4-questions-shell--first-page-plain > .question-section-item {
+  position: relative;
+  z-index: 2;
+  box-sizing: border-box;
+}
+
+.sheet-preview.sheet-preview-a4-draw .sheet-a4-questions-shell--first-page-plain > .question-section-item.question-section-objective-merge-follow {
+  padding-top: 0;
+  margin-top: 0;
+}
+
+/* 整页校对叠加（相对纸张）：须在试题区之下，避免盖住绘制内容 */
+.sheet-preview.sheet-preview-a4-draw .sheet-a4-page-draw-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.sheet-preview.sheet-preview-a4-draw .position-marker {
+  z-index: 6;
+}
+
+.sheet-preview.sheet-preview-a4-draw .sheet-a4-marker-guides {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.sheet-preview.sheet-preview-a4-draw .sheet-a4-marker-guide {
+  position: absolute;
+  box-sizing: border-box;
+  border-style: solid;
+  border-width: 1px;
+}
+
+.sheet-preview.sheet-preview-a4-draw .sheet-a4-marker-guide--outer {
+  top: 40px;
+  right: 40px;
+  bottom: 40px;
+  left: 40px;
+  border: none;
+}
+
+.sheet-preview.sheet-preview-a4-draw .sheet-a4-marker-guide--inner {
+  top: 52px;
+  right: 64px;
+  bottom: 64px;
+  left: 64px;
+  border: none;
+}
+
+.sheet-preview.sheet-preview-a4-draw .sheet-a4-questions-draw-fill {
+  position: absolute;
+  top: 53px;
+  right: 65px;
+  bottom: 65px;
+  left: 65px;
+  z-index: 0;
+  background: transparent;
+  box-sizing: border-box;
+}
+
+/* 班级填涂模式：左侧留白更大，内线左缘与 safe-area 左缘对齐 */
+.sheet-preview.sheet-preview-a4-draw.sheet-preview-class-number .sheet-a4-marker-guide--inner {
+  left: 140px;
+}
+
+.sheet-preview.sheet-preview-a4-draw.sheet-preview-class-number .sheet-a4-questions-draw-fill {
+  left: 141px;
+}
+
+.sheet-safe-area {
+  position: absolute;
+  top: 74px;
+  right: 86px;
+  bottom: 74px;
+  left: 86px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* 顶区 + 试题均在内线框内，不可向外溢出（子元素内部仍可 overflow:auto） */
+  overflow: hidden;
+}
+
+/* A4：内容与内线框对齐（四角定位块外 40px + 与 A3 一致的内缩：52 / 64 / 64 / 64）；内侧 top/左/右 10px、底 5px（与 constants 内 INSET_* 一致） */
+.sheet-preview.sheet-preview-a4-draw .sheet-safe-area {
+  top: 52px;
+  right: 64px;
+  bottom: 64px;
+  left: 64px;
+  z-index: 2;
+  padding: 10px 10px 5px 10px;
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+.sheet-preview.sheet-preview-a4-draw.sheet-preview-class-number .sheet-safe-area {
+  left: 140px;
+}
+
+/* A4 预览：纸张白底框不裁剪，绘制内容可溢出显示（导出 PDF 时再裁剪） */
+.sheet-preview.sheet-preview-a4-draw {
+  overflow: visible;
+}
+
+/* 续页仅有 .questions-section 时，覆盖全局 clip（与 .sheet-a4-questions-section 一致） */
+.sheet-preview.sheet-preview-a4-draw .questions-section {
+  overflow: visible;
+}
+
+/* A3 分栏：原 sheet-safe-area 边距移到纸张本体（pane / 三栏 host 直接贴在 sheet-preview 内） */
+.sheet-preview.sheet-preview-a3-multicol {
+  box-sizing: border-box;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-class-number {
+  padding-left: 140px;
+}
+
+/* A3 两栏：整张纸 CSS Grid，左右 1fr / 1fr */
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: minmax(0, 1fr);
+  column-gap: 6px;
+  align-items: stretch;
+  align-content: stretch;
+  min-height: 0;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 > .class-number-side-seal {
+  grid-column: 1 / -1;
+}
+
+/*
+ * A3 三栏 / 8K 三栏：整页左右各 20px 为非绘制边距；中间剩余宽度由内联 grid 按页交替 4:3:3 / 3:3:4 分割（column-gap 10px）。
+ * 班级填涂左密封条仍占 140px，与左右 20px 规则叠加时用更高优先级覆盖 padding-left。
+ */
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 {
+  min-height: 0;
+  column-gap: 10px;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3.sheet-preview-class-number {
+  padding-left: 140px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 > .class-number-side-seal {
+  grid-column: 1 / -1;
+}
+
+/* A3 两栏：每栏四角定位与蓝红参考线同 A4（相对本栏边缘） */
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-col-pane {
+  grid-row: 1;
+  min-width: 0;
+  position: relative;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  z-index: 2;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-col-pane-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  min-width: 0;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-col-pane-markers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-col-pane-markers .position-marker {
+  z-index: 6;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-pane-marker-guides {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-pane-marker-guide {
+  position: absolute;
+  box-sizing: border-box;
+  border-style: solid;
+  border-width: 1px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-pane-marker-guide--outer {
+  top: 40px;
+  right: 40px;
+  bottom: 40px;
+  left: 40px;
+  border: none;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-pane-marker-guide--inner {
+  top: 52px;
+  right: 64px;
+  bottom: 64px;
+  left: 64px;
+  border: none;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-col-pane-body {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 62px 74px 69px 74px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * A3 两栏：pane-body 兼试题 shell，与 A4 .sheet-a4-questions-shell 同源（flex 列 + 首页尾占位条 + 题块 padding-top）。
+ */
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-col-pane-body.sheet-a3-two-col-pane-shell,
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane-body.sheet-a3-two-col-pane-shell {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-two-col-pane-shell .sheet-a3-two-col-drawable-leader,
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-two-col-pane-shell .sheet-a3-two-col-drawable-leader {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 2;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-two-col-pane-shell--first-page::after,
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-two-col-pane-shell--first-page::after {
+  content: '';
+  flex: 1 1 0;
+  min-height: 0;
+  pointer-events: none;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-two-col-pane-shell--first-page > .question-section-item,
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-two-col-pane-shell--first-page > .question-section-item {
+  position: relative;
+  z-index: 2;
+  box-sizing: border-box;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-two-col-pane-shell--first-page > .question-section-item.question-section-objective-merge-follow,
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-two-col-pane-shell--first-page > .question-section-item.question-section-objective-merge-follow {
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-two-col-pane-shell--continuation,
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-two-col-pane-shell--continuation {
+  overflow-x: clip;
+  overflow-y: hidden;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-two-col-pane-shell--continuation > .question-section-item,
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-two-col-pane-shell--continuation > .question-section-item {
+  position: relative;
+  z-index: 2;
+  box-sizing: border-box;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-two-col-pane-shell--continuation > .question-section-item.question-section-objective-merge-follow,
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-two-col-pane-shell--continuation > .question-section-item.question-section-objective-merge-follow {
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-col-markers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/*
+ * 栏内定位块：坐标相对栏的 padding 盒（与 absolute 含块一致）。
+ * 整页 safe-area 已对纸张留了 top/bottom 40px，故此处勿再叠加 40px，否则上下框会整体偏里。
+ */
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-col-markers .position-marker.top-left {
+  left: 20px;
+  top: 0;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-col-markers .position-marker.top-right {
+  right: 20px;
+  top: 0;
+}
+
+/*
+ * 底栏：不用 rotate(90deg)，直接做成竖条（12×24），避免 transform-origin 与含块组合后整块甩到错误一侧。
+ */
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-col-markers .position-marker.bottom-left {
+  left: 20px;
+  bottom: 0;
+  width: 12px;
+  height: 24px;
+  transform: none;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-col-markers .position-marker.bottom-right {
+  right: 20px;
+  bottom: 0;
+  width: 12px;
+  height: 24px;
+  transform: none;
+}
+
+/*
+ * A3 分栏参考线（后期可删）：外线 = 四角定位块朝纸缘的外角连线（蓝）；内线 = 朝栏内的内角连线（红）。
+ * 与栏内定位块一致：顶/底贴栏缘（top/bottom 0），左右 20px；内线顶侧按横条 12px，底侧按竖条高 24px。
+ */
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-marker-guides {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-marker-guide {
+  position: absolute;
+  box-sizing: border-box;
+  border-style: solid;
+  border-width: 1px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-marker-guide--outer {
+  top: 0;
+  right: 20px;
+  bottom: 0;
+  left: 20px;
+  border: none;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-marker-guide--inner {
+  top: 12px;
+  right: 44px;
+  bottom: 24px;
+  left: 44px;
+  border: none;
+}
+
+/* 试题区竖栏含上角横条时，内线顶侧与横条对齐 */
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-col-markers--questions .sheet-a3-marker-guide--inner {
+  top: 12px;
+}
+
+/*
+ * A3 分栏试题区：第一栏右上/右下定位框向右 20px；第二栏左上/左下向左 20px；外线/内线与 .sheet-a3-questions-column-body 绘制区内边距同步。
+ * 第三栏及其它角不变。
+ */
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column--1 .sheet-a3-col-markers .position-marker.top-right,
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column--1 .sheet-a3-col-markers .position-marker.bottom-right {
+  right: 0;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column--1 .sheet-a3-col-markers .sheet-a3-marker-guide--outer {
+  right: 0;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column--1 .sheet-a3-col-markers .sheet-a3-marker-guide--inner {
+  right: 24px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column--1 .sheet-a3-questions-column-body {
+  padding: 40px 24px 40px 44px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column--2 .sheet-a3-col-markers .position-marker.top-left,
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column--2 .sheet-a3-col-markers .position-marker.bottom-left {
+  left: 0;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column--2 .sheet-a3-col-markers .sheet-a3-marker-guide--outer {
+  left: 0;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column--2 .sheet-a3-col-markers .sheet-a3-marker-guide--inner {
+  left: 24px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column--2 .sheet-a3-questions-column-body {
+  padding: 40px 44px 40px 24px;
+}
+
+/* A3 两栏物理 pane：与上相同几何（定位块相对 pane 为 40px 基准） */
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-col-pane--1 .sheet-a3-col-pane-markers .position-marker.top-right,
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-col-pane--1 .sheet-a3-col-pane-markers .position-marker.bottom-right {
+  right: 20px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-col-pane--1 .sheet-a3-pane-marker-guide--outer {
+  right: 20px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-col-pane--1 .sheet-a3-pane-marker-guide--inner {
+  right: 44px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-col-pane--1 .sheet-a3-col-pane-body {
+  padding: 62px 54px 69px 74px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-col-pane--2 .sheet-a3-col-pane-markers .position-marker.top-left,
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-col-pane--2 .sheet-a3-col-pane-markers .position-marker.bottom-left {
+  left: 20px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-col-pane--2 .sheet-a3-pane-marker-guide--outer {
+  left: 20px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-col-pane--2 .sheet-a3-pane-marker-guide--inner {
+  left: 44px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-col-pane--2 .sheet-a3-col-pane-body {
+  padding: 62px 74px 69px 54px;
+}
+
+/* A3 三栏 pane：与两栏相同四角定位 + 蓝红外框；邻缝侧缩进 */
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane-markers .position-marker {
+  z-index: 6;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-pane-marker-guides {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-pane-marker-guide {
+  position: absolute;
+  box-sizing: border-box;
+  border-style: solid;
+  border-width: 1px;
+}
+
+/*
+ * 三栏：纸缘 40px 已在 sheet-preview padding 扣除；栏内外线相对本栏边缘。
+ * 栏缝侧外线贴边 + column-gap:10px；内线相对栏缘 24px；试题区 body 水平 1px（外线内侧 +1px）。
+ */
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane-body {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 62px 1px 69px 1px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane--1 .sheet-a3-col-pane-markers .position-marker.top-left,
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane--1 .sheet-a3-col-pane-markers .position-marker.bottom-left {
+  left: 0;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane--1 .sheet-a3-col-pane-markers .position-marker.top-right,
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane--1 .sheet-a3-col-pane-markers .position-marker.bottom-right {
+  right: 0;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane--1 .sheet-a3-pane-marker-guide--outer {
+  top: 40px;
+  right: 0;
+  bottom: 40px;
+  left: 0;
+  border: none;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane--1 .sheet-a3-pane-marker-guide--inner {
+  top: 52px;
+  right: 24px;
+  bottom: 64px;
+  left: 24px;
+  border: none;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane--2 .sheet-a3-col-pane-markers .position-marker.top-left,
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane--2 .sheet-a3-col-pane-markers .position-marker.bottom-left {
+  left: 0;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane--2 .sheet-a3-col-pane-markers .position-marker.top-right,
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane--2 .sheet-a3-col-pane-markers .position-marker.bottom-right {
+  right: 0;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane--2 .sheet-a3-pane-marker-guide--outer {
+  top: 40px;
+  right: 0;
+  bottom: 40px;
+  left: 0;
+  border: none;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane--2 .sheet-a3-pane-marker-guide--inner {
+  top: 52px;
+  right: 24px;
+  bottom: 64px;
+  left: 24px;
+  border: none;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane--2 .sheet-a3-col-pane-body {
+  padding: 62px 1px 69px 1px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane--3 .sheet-a3-col-pane-markers .position-marker.top-left,
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane--3 .sheet-a3-col-pane-markers .position-marker.bottom-left {
+  left: 0;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane--3 .sheet-a3-col-pane-markers .position-marker.top-right,
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane--3 .sheet-a3-col-pane-markers .position-marker.bottom-right {
+  right: 0;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane--3 .sheet-a3-pane-marker-guide--outer {
+  top: 40px;
+  right: 0;
+  bottom: 40px;
+  left: 0;
+  border: none;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane--3 .sheet-a3-pane-marker-guide--inner {
+  top: 52px;
+  right: 24px;
+  bottom: 64px;
+  left: 24px;
+  border: none;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-col-pane--3 .sheet-a3-col-pane-body {
+  padding: 62px 1px 69px 1px;
+}
+
+/* 淡蓝区：与栏内外线一致（纸缘侧已由页 padding 留出） */
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-3 .sheet-a3-draw-fill--three-col-pane {
+  position: absolute;
+  pointer-events: none;
+  z-index: 1;
+  box-sizing: border-box;
+  background: transparent;
+  top: 53px;
+  right: 0;
+  bottom: 65px;
+  left: 0;
+}
+
+/*
+ * A3 每栏可绘制区（内线内侧，与 A4 sheet-a4-questions-draw-fill 同色）；置于题块之下、参考线框之上。
+ */
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-draw-fill--two-col-pane {
+  position: absolute;
+  pointer-events: none;
+  z-index: 1;
+  box-sizing: border-box;
+  background: transparent;
+  top: 53px;
+  right: 65px;
+  bottom: 65px;
+  left: 65px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-col-pane--1 .sheet-a3-draw-fill--two-col-pane {
+  right: 45px;
+  left: 65px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-col-pane--2 .sheet-a3-draw-fill--two-col-pane {
+  left: 45px;
+  right: 65px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column .sheet-a3-draw-fill--three-col-column {
+  position: absolute;
+  pointer-events: none;
+  z-index: 1;
+  box-sizing: border-box;
+  background: transparent;
+  top: 13px;
+  right: 45px;
+  bottom: 25px;
+  left: 45px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column--1 .sheet-a3-draw-fill--three-col-column {
+  right: 25px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column--2 .sheet-a3-draw-fill--three-col-column {
+  left: 25px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-wrap {
+  display: grid;
+  /* 单行撑满 flex 剩余高度，否则行高仅随试题内容，底部定位框会悬在中间 */
+  grid-template-rows: minmax(0, 1fr);
+  column-gap: 10px;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  align-items: stretch;
+  align-content: stretch;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column {
+  grid-row: 1;
+  min-width: 0;
+  position: relative;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  z-index: 2;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column .sheet-a3-questions-col-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  min-width: 0;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-col-markers--questions {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* 顶区（标题、sheet-header、须知、准考证号）与 A4 共用样式，勿在此处改成单列竖排 */
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column-body {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 40px 44px 40px;
+  overflow-x: clip;
+  overflow-y: visible;
+  min-width: 0;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-multicol-span-leader {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: clip;
+  margin-bottom: 20px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column--1 .sheet-a3-multicol-span-leader .header-right-card {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column--1 .sheet-a3-multicol-span-leader .identity-section {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column--1 .sheet-a3-multicol-span-leader .notice-box {
+  min-width: 0;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column--1 .sheet-a3-multicol-span-leader .admission-card {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
+  overflow-x: auto;
+}
+
+/*
+ * A3 两栏首栏较窄：短学号与 A4 相同三块并排，中间「学校/姓名」列用 1fr 吸收剩余宽度，
+ * 下划线随列变窄，避免短学号容器出现横向滚动条。
+ */
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-questions-column--1 .sheet-a3-multicol-span-leader .sheet-header.sheet-header-short {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto;
+  column-gap: 6px;
+  align-items: center;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-questions-column--1 .sheet-a3-multicol-span-leader .header-right-card {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  justify-self: stretch;
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-questions-column--1 .sheet-a3-multicol-span-leader .header-right-card .line-row:first-child {
+  grid-template-columns: 34px minmax(0, 1fr);
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-questions-column--1 .sheet-a3-multicol-span-leader .header-right-card .line-row:last-child {
+  grid-template-columns: 34px minmax(0, 1fr) 34px minmax(0, 1fr);
+}
+
+.sheet-preview.sheet-preview-a3-multicol.sheet-preview-a3-cols-2 .sheet-a3-questions-column--1 .sheet-a3-multicol-span-leader .sheet-header.sheet-header-short .short-number-card {
+  justify-self: end;
+  flex-shrink: 0;
+  max-width: none;
+  overflow-x: visible;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column--1 .sheet-a3-multicol-span-leader .barcode-paste-card {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .sheet-a3-questions-column-body .questions-section.sheet-a3-multicol-questions {
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  margin-top: 0;
+  padding: 0;
+  box-sizing: border-box;
+  pointer-events: auto;
+  min-width: 0;
+  overflow-x: clip;
+  overflow-y: visible;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .questions-section.sheet-a3-multicol-questions .question-section-item,
+.sheet-preview.sheet-preview-a3-multicol .questions-section.sheet-a3-multicol-questions .question-block {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* A3 三栏（权重分页）：题块顶距与 A4 一致，确保 AnswerSheetSectionTitle 与分页 SUBJECTIVE_SECTION_HEADER_PX (40px) 对齐 */
+.sheet-preview.sheet-preview-a3-multicol .questions-section.sheet-a3-multicol-questions > .question-section-item {
+  padding-top: 10px;
+}
+
+.sheet-preview.sheet-preview-a3-multicol .questions-section.sheet-a3-multicol-questions > .question-section-item.question-section-objective-merge-follow {
+  padding-top: 0;
+}
+
+.sheet-preview.sheet-preview-class-number:not(.sheet-preview-a4-draw) .sheet-safe-area {
+  left: 140px;
+}
+
+.admission-config-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admission-editor-body {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 48px;
+}
+
+.questions-section-host--pass-through {
+  display: contents;
+}
+
+.questions-section {
+  margin-top: 15px;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  z-index: 2;
+  overflow-x: clip;
+  overflow-y: hidden;
+}
+
+.questions-section.questions-section-continuation {
+  margin-top: 0;
+  min-height: 0;
+}
+
+/* 大题块上边距统一在 item：padding-top 10px + .section-title 30px = 分页 SUBJECTIVE_SECTION_HEADER_PX (40px) */
+.answer-sheet-editor .sheet-preview .questions-section .question-section-item {
+  box-sizing: border-box;
+}
+
+/* 同一页内客观题多横带：取消中间空隙（含 A3 子样式下的 sibling margin），外框连成一体 */
+.answer-sheet-editor .sheet-preview .questions-section .question-section-item.question-section-objective-merge-follow,
+.answer-sheet-editor .sheet-preview .sheet-a3-two-col-pane-shell > .question-section-item.question-section-objective-merge-follow,
+.answer-sheet-editor .sheet-preview .sheet-a4-questions-shell--first-page-plain > .question-section-item.question-section-objective-merge-follow {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.answer-sheet-editor .sheet-preview .question-section-item.sheet-objective-title-only {
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.answer-sheet-editor .sheet-preview .question-section-item.sheet-objective-title-only + .question-section-item.question-section-objective-merge-follow {
+  margin-top: 0;
+}
+
+/* 客观题首横带：题区保留完整上边框；后续横带仍用 .question-block-objective-merged-top 顶边合并 */
+.answer-sheet-editor .sheet-preview .question-section-item.sheet-objective-title-only + .question-section-item.question-section-objective-merge-follow .question-block.question-block-objective-merged-top {
+  border-top: 1px solid #000;
+  margin-top: 0;
+  padding-top: 5px;
+}
+
+.answer-sheet-editor .sheet-preview .question-block.question-block-objective-merged-top {
+  border-top: none;
+  margin-top: -1px;
+  padding-top: 5px;
+}
+
+.question-block {
+  border: 1px solid #000;
+  padding: 5px 10px 5px;
+}
+
+.question-block-fillblank {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.question-block-answer {
+  border: none;
+  padding: 0;
+}
+
+.question-block-chinese {
+  border: none;
+  padding: 0;
+}
+
+.question-block-item {
+  position: relative;
+}
+
+.block-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 3;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  padding: 0 4px;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.question-block-item:hover .block-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.danger-text-btn {
+  color: #f56c6c;
+}
+
+.config-panel {
+  width: 400px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: linear-gradient(165deg, #f8fafc 0%, #f1f5f9 45%, #e8edf4 100%);
+  border-left: 1px solid #e2e8f0;
+  box-shadow: -6px 0 32px rgba(15, 23, 42, 0.07);
+}
+
+.panel-header {
+  flex-shrink: 0;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.95);
+}
+
+.panel-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* 面板顶部总览：题量 / 总分 / 页数 */
+.panel-stats {
+  flex-shrink: 0;
+  display: flex;
+  gap: 10px;
+  padding: 12px 20px 0;
+}
+
+.panel-stat {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+}
+
+.panel-stat-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+  line-height: 1.1;
+}
+
+.panel-stat-label {
+  font-size: 11px;
+  color: #909399;
+}
+.panel-header-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+}
+
+.panel-header-sub {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.3;
+}
+
+.panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.panel-header-secondary {
+  flex-shrink: 0;
+}
+
+.panel-header-cta {
+  flex-shrink: 0;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.35);
+}
+
+.panel-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px 18px 20px;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.panel-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.panel-content::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 6px;
+}
+
+.config-section {
+  margin-bottom: 12px;
+  padding: 14px 16px;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+.config-section:last-child {
+  margin-bottom: 0;
+}
+
+.config-section--questions {
+  padding-bottom: 12px;
+}
+
+.section-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 12px;
+  padding-left: 11px;
+  border-left: 3px solid #409eff;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+}
+
+.layout-group,
+.fill-type-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.config-field-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.config-field-row + .config-field-row {
+  margin-top: 10px;
+}
+
+.config-field-label {
+  flex: 0 0 44px;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.config-field-row .el-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 开关行：开关紧跟标签，说明文字靠右，与上方输入框右边缘对齐 */
+.config-field-row--switch {
+  justify-content: flex-start;
+}
+
+.config-field-hint {
+  margin-left: auto;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.config-switch-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 400;
+  color: #94a3b8;
+  letter-spacing: 0;
+}
+
+.layout-group .el-radio.is-bordered,
+.fill-type-group .el-radio.is-bordered {
+  margin-right: 0;
+  border-radius: 8px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.layout-group .el-radio.is-bordered:hover,
+.fill-type-group .el-radio.is-bordered:hover {
+  border-color: #c6e2ff;
+  box-shadow: 0 1px 6px rgba(64, 158, 255, 0.12);
+}
+
+.config-switch {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.config-switch .section-label {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+.fill-mode-group {
+  display: flex;
+  gap: 8px;
+}
+
+.config-panel-divider {
+  margin: 6px 0 14px;
+  background-color: transparent;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.config-panel-divider.el-divider--horizontal {
+  margin: 6px 0 14px;
+}
+
+.question-type-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.question-type-buttons .el-button {
+  flex: 1;
+  min-width: 108px;
+  border-radius: 8px;
+  font-weight: 500;
+  margin-left: 10px;
+}
+
+.generated-block-list {
+  margin-top: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 10px;
+  max-height: 200px;
+  overflow: auto;
+  background: #f8fafc;
+  scrollbar-width: thin;
+}
+
+.generated-block-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  border-radius: 8px;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.45;
+  cursor: move;
+  background: #fff;
+  border: 1px solid transparent;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.generated-block-item:last-child {
+  margin-bottom: 0;
+}
+
+.generated-block-item:hover {
+  border-color: #e2e8f0;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+.generated-block-item > span {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.panel-footer {
+  flex-shrink: 0;
+  padding: 14px 18px 18px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(226, 232, 240, 0.95);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.panel-footer-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.panel-footer-row--secondary .panel-footer-btn {
+  flex: 1;
+}
+
+.panel-footer-row--primary {
+  gap: 10px;
+}
+
+.panel-footer-btn--grow {
+  flex: 1.2;
+  font-weight: 600;
+}
+
+.panel-footer-btn {
+  border-radius: 8px;
+}
+
+/* PDF 导出：隐藏编辑操作、避免滚动区域裁切、便于分页 */
+.answer-sheet-editor.is-exporting-pdf .notice-edit-trigger {
+  display: none !important;
+}
+
+.answer-sheet-editor.is-exporting-pdf .block-actions {
+  display: none !important;
+}
+
+.answer-sheet-editor.is-exporting-pdf .preview-section {
+  overflow: visible !important;
+}
+
+.answer-sheet-editor.is-exporting-pdf .preview-content {
+  overflow: visible !important;
+  /* 导出截图根的外层滚动区：禁止 padding，避免 html2canvas 量纲与版心错位 */
+  padding: 0 !important;
+  margin: 0;
+}
+
+.answer-sheet-editor.is-exporting-pdf .preview-content-sheets {
+  padding: 0 !important;
+  gap: 20px;
+  overflow: visible !important;
+  background: #ffffff;
+}
+
+.answer-sheet-editor.is-exporting-pdf .sheet-preview {
+  box-shadow: none;
+  page-break-after: always;
+  break-after: page;
+  box-sizing: border-box;
+}
+
+.answer-sheet-editor.is-exporting-pdf .sheet-preview.sheet-preview-a4-draw {
+  overflow: hidden !important;
+}
+
+.answer-sheet-editor.is-exporting-pdf .sheet-preview:last-child {
+  page-break-after: auto;
+  break-after: auto;
+}
+
+/* 防止题型组件内部被截断 */
+.answer-sheet-editor.is-exporting-pdf .objective-bands,
+.answer-sheet-editor.is-exporting-pdf .fillblank-render,
+.answer-sheet-editor.is-exporting-pdf .answer-render,
+.answer-sheet-editor.is-exporting-pdf .english-render,
+.answer-sheet-editor.is-exporting-pdf .chinese-render {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+/* 确保题块间距一致 */
+.answer-sheet-editor.is-exporting-pdf .question-section-item {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.answer-sheet-editor.is-exporting-pdf .sheet-a3-marker-guides,
+.answer-sheet-editor.is-exporting-pdf .sheet-a3-pane-marker-guides,
+.answer-sheet-editor.is-exporting-pdf .sheet-a3-draw-fill {
+  display: none !important;
+}
+
+.answer-sheet-editor.is-exporting-pdf .sheet-a4-page-draw-overlay {
+  display: none !important;
+}
+
+@media print {
+  .config-panel,
+  .preview-header {
+    display: none !important;
+  }
+
+  .answer-sheet-editor,
+  .preview-section,
+  .preview-content,
+  .preview-content-sheets {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    overflow: visible !important;
+    height: auto;
+  }
+
+  /*
+   * 打印必须回到块级流：page-break-after / break-after 对 flex 子项不生效，
+   * 保持 display:flex 时多张答题卡会被挤进同一页（实测 4 页只输出 1 页）。
+   */
+  .answer-sheet-editor,
+  .preview-section,
+  .preview-content,
+  .preview-content-sheets {
+    display: block !important;
+  }
+
+  .sheet-preview {
+    box-shadow: none;
+    page-break-after: always;
+    break-after: page;
+    break-inside: avoid;
+  }
+
+  .sheet-preview.sheet-preview-a3 {
+    width: 420mm;
+    height: 297mm;
+  }
+
+  .sheet-preview.sheet-preview-8k {
+    width: 390mm;
+    height: 270mm;
+  }
+
+  .sheet-preview:last-child {
+    page-break-after: auto;
+  }
+
+  /* A3 / A4 参考线仅供屏幕校对，正式打印不输出 */
+  .sheet-a3-marker-guides,
+  .sheet-a3-pane-marker-guides,
+  .sheet-a3-draw-fill {
+    display: none !important;
+  }
+
+  .sheet-a4-page-draw-overlay {
+    display: none !important;
+  }
+}
+
+.notice-editor-hint {
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+/* PDF 导出等待弹窗（append-to-body） */
+.answer-sheet-pdf-export-dialog .el-dialog__body {
+  padding: 8px 24px 26px;
+}
+
+.pdf-export-dialog-body {
+  min-height: 72px;
+}
+
+.pdf-export-dialog-tip {
+  margin: 0 0 18px;
+  text-align: center;
+  font-size: 14px;
+  color: #606266;
+  line-height: 1.5;
+}
+
+/* ---------------- 载入模板弹窗：内置科目模板 ---------------- */
+
+.answer-sheet-template-dialog .el-dialog__body {
+  max-height: 76vh;
+  overflow-y: auto;
+  padding: 18px 22px 8px;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.answer-sheet-template-dialog .el-dialog__body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.answer-sheet-template-dialog .el-dialog__body::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 6px;
+}
+
+.preset-block {
+  margin-bottom: 18px;
+}
+
+.preset-block-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.preset-block-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  padding-left: 9px;
+  border-left: 3px solid #409eff;
+  line-height: 1.2;
+}
+
+.preset-block-sub {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 2px 4px 2px 2px;
+}
+
+.preset-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 116px;
+  padding: 10px 12px 10px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.preset-card:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 4px 14px rgba(64, 158, 255, 0.14);
+  transform: translateY(-1px);
+}
+
+.preset-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.preset-card-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.preset-card-layout {
+  flex-shrink: 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #2563eb;
+  background: #eff6ff;
+  border-radius: 4px;
+  padding: 0 6px;
+  white-space: nowrap;
+}
+
+.preset-card-score {
+  font-size: 12px;
+  color: #475569;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+
+.preset-card-summary {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.5;
+  min-height: 34px;
+  max-height: 34px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.preset-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.preset-card-tag {
+  font-size: 11px;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preset-card-load {
+  flex-shrink: 0;
+}
+
+.preset-block--mine {
+  margin-bottom: 6px;
+}
+
+.preset-block--mine .el-table {
+  border-radius: 8px;
+}
+
+@media (max-width: 900px) {
+  .preset-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---------------- 只读模式（readonly） ----------------
+ * 隐藏所有编辑入口，仅保留预览、打印与导出 PDF。
+ * JS 侧已在事件处理里做了守卫，这里的 display 只是避免露出可点但无响应的按钮。
+ */
+.answer-sheet-editor--readonly .config-panel,
+.answer-sheet-editor--readonly .block-actions,
+.answer-sheet-editor--readonly .notice-edit-trigger {
+  display: none !important;
+}
+
+.answer-sheet-editor--readonly .answer-render-item {
+  cursor: default;
+}
+
+/* 只读时预览区独占整宽（配置面板已隐藏） */
+.answer-sheet-editor--readonly .preview-section {
+  width: 100%;
+}

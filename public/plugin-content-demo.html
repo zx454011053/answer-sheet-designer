@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <title>答题卡设计器 · 通过参数设置内容</title>
+    <script src="/node_modules/vue/dist/vue.js"></script>
+    <link rel="stylesheet" href="/node_modules/element-ui/lib/theme-chalk/index.css" />
+    <script src="/node_modules/element-ui/lib/index.js"></script>
+    <link rel="stylesheet" href="/preview/answer-sheet-designer.css" />
+    <script src="/preview/answer-sheet-designer.umd.js"></script>
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+      }
+      #app {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 16px;
+        background: #0f172a;
+        color: #e2e8f0;
+        font-size: 13px;
+        flex-shrink: 0;
+      }
+      .toolbar strong {
+        font-weight: 600;
+        margin-right: 6px;
+      }
+      .toolbar button {
+        padding: 5px 12px;
+        border-radius: 6px;
+        border: 1px solid #334155;
+        background: #1e293b;
+        color: #e2e8f0;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .toolbar button:hover {
+        background: #334155;
+      }
+      .designer-wrap {
+        flex: 1;
+        min-height: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div class="toolbar" id="toolbar">
+        <strong>传参即用：</strong>
+        <button id="btn-college" @click="useCollege">考研 政治（A4 单栏）</button>
+        <button id="btn-a3" @click="useA3">语文（A3 三栏）</button>
+        <button id="btn-append" @click="appendBlock">追加一道解答题</button>
+        <button id="btn-retitle" @click="retitle">只改标题（setForm）</button>
+        <span id="hint">当前：{{ info }}</span>
+      </div>
+      <div class="designer-wrap">
+        <answer-sheet-designer
+          ref="designer"
+          :content="sheet"
+          :show-header="false"
+          :auto-load="true"
+          @saved="onSaved"
+        />
+      </div>
+    </div>
+    <script>
+      // element-ui 的 UMD 全局名是 ELEMENT
+      var ElementUIPlugin = window.ELEMENT || window.ElementUI;
+      if (ElementUIPlugin) Vue.use(ElementUIPlugin);
+      Vue.use(AnswerSheetDesigner);
+
+      // ---- 用普通对象描述一份试卷，交给设计器渲染 ----
+      function collegeSheet() {
+        return {
+          title: '考研政治 模拟一-答题卡',
+          examNo: 'K20261118',
+          layout: 'A4',
+          blocks: [
+            { type: 'single', from: 1, to: 16, score: 1 },
+            { type: 'multiple', from: 17, to: 33, score: 2 },
+            {
+              type: 'answer',
+              title: '材料分析题',
+              from: 34,
+              to: 38,
+              score: 10,
+              height: 300
+            }
+          ]
+        };
+      }
+
+      function chineseSheet() {
+        return {
+          title: '语文 期中联考-答题卡',
+          examNo: 'C20261118',
+          layout: 'A3',
+          columns: 3,
+          notice: [
+            '答题前请将姓名、班级填涂清楚。',
+            '选择题使用 2B 铅笔填涂，主观题使用 0.5mm 黑色签字笔。',
+            '请在各题指定区域内作答，超出区域无效。'
+          ],
+          blocks: [
+            {
+              type: 'single',
+              from: 1,
+              to: 6,
+              score: 3,
+              items: [
+                { from: 1, to: 2, score: 3 },
+                { from: 6, to: 6, score: 3 }
+              ]
+            },
+            { type: 'answer', title: '现代文阅读', from: 3, to: 5, score: 4, height: 170 },
+            { type: 'blank', title: '名篇名句默写', from: 7, to: 7, score: 6, lines: 3 },
+            { type: 'chinese', title: '写作', no: 8, score: 60, words: 800 }
+          ]
+        };
+      }
+
+      new Vue({
+        el: '#app',
+        data: function () {
+          return { sheet: collegeSheet(), info: '' };
+        },
+        mounted: function () {
+          var self = this;
+          // 设计器首帧要测一次高度，稍等再读状态
+          setTimeout(function () { self.refresh(); }, 600);
+        },
+        methods: {
+          refresh: function () {
+            var d = this.$refs.designer;
+            if (!d) return;
+            var form = d.getForm();
+            this.info = form.sheetName + ' · ' + (form.layoutType || 'A4')
+              + (form.layoutType === 'A4' ? ' 单栏' : ' ' + form.a3ColumnCount + ' 栏')
+              + ' · ' + d.getQuestionBlocks().length + ' 个大题'
+              + ' · ' + d.getPreviewPages().length + ' 页';
+          },
+          settle: function () {
+            var self = this;
+            this.$nextTick(function () { setTimeout(function () { self.refresh(); }, 400); });
+          },
+          useCollege: function () {
+            this.sheet = collegeSheet();
+            this.settle();
+          },
+          useA3: function () {
+            this.sheet = chineseSheet();
+            this.settle();
+          },
+          appendBlock: function () {
+            var blocks = this.$refs.designer.getQuestionBlocks().map(function (b) {
+              return JSON.parse(JSON.stringify(b));
+            });
+            var lastNum = 0;
+            blocks.forEach(function (b) {
+              (b.segments || []).forEach(function (s) {
+                lastNum = Math.max(lastNum, Number(s.endNum) || 0);
+              });
+              if (b.questionNo) lastNum = Math.max(lastNum, Number(b.questionNo) || 0);
+            });
+            blocks.push({
+              type: 'answer',
+              sectionNo: blocks.length + 1,
+              sectionTitle: '附加题',
+              segments: [{ startNum: lastNum + 1, endNum: lastNum + 1, scorePerQuestion: 15, areaHeight: 260 }]
+            });
+            this.$refs.designer.setQuestionBlocks(blocks);
+            this.settle();
+          },
+          retitle: function () {
+            this.$refs.designer.setForm({ sheetName: '标题已通过 setForm 修改' });
+            this.settle();
+          },
+          onSaved: function (payload) {
+            console.log('[plugin-demo] saved', payload && payload.sheetName);
+          }
+        }
+      });
+    </script>
+  </body>
+</html>

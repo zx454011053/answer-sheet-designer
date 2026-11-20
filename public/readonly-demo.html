@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <title>答题卡设计器 · 只读展示示例</title>
+    <script src="/node_modules/vue/dist/vue.js"></script>
+    <link rel="stylesheet" href="/node_modules/element-ui/lib/theme-chalk/index.css" />
+    <script src="/node_modules/element-ui/lib/index.js"></script>
+    <link rel="stylesheet" href="/preview/answer-sheet-designer.css" />
+    <script src="/preview/answer-sheet-designer.umd.js"></script>
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      #designer {
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="designer"></div>
+    <script>
+      // 只读形态：配置面板与编辑按钮全部隐藏，只保留预览 / 打印 / 导出 PDF。
+      // 适合「学生查答题卡」「家长确认版式」这类不需要改数据的场景。
+      var content = {
+        title: '高一数学 期中联考-答题卡',
+        examNo: 'S20261119',
+        layout: 'A4',
+        blocks: [
+          { type: 'single', from: 1, to: 10, score: 5 },
+          { type: 'multiple', from: 11, to: 13, score: 5 },
+          { type: 'blank', from: 14, to: 18, score: 4, lines: 1 },
+          { type: 'answer', from: 19, to: 22, score: 12, height: 260 }
+        ]
+      };
+
+      window.readonlyHandle = AnswerSheetDesigner.mount('#designer', {
+        propsData: {
+          content: content,
+          readonly: true,
+          autoLoad: false,
+          showHeader: false
+        }
+      });
+    </script>
+  </body>
+</html>

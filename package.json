@@ -1,0 +1,92 @@
+{
+  "name": "answer-sheet-designer",
+  "version": "1.0.0",
+  "description": "Vue 2 答题卡设计器：可视化排版、参数生成、浏览器打印与 PDF 导出",
+  "license": "MIT",
+  "private": true,
+  "main": "dist/answer-sheet-designer.umd.js",
+  "module": "dist/answer-sheet-designer.es.js",
+  "types": "index.d.ts",
+  "unpkg": "dist/answer-sheet-designer.umd.js",
+  "style": "dist/answer-sheet-designer.css",
+  "sideEffects": [
+    "*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./dist/answer-sheet-designer.es.js",
+      "require": "./dist/answer-sheet-designer.umd.js",
+      "default": "./dist/answer-sheet-designer.umd.js"
+    },
+    "./core": {
+      "types": "./core.d.ts",
+      "import": "./dist/answer-sheet-designer.core.mjs",
+      "require": "./dist/answer-sheet-designer.core.cjs",
+      "default": "./dist/answer-sheet-designer.core.mjs"
+    },
+    "./dist/*": "./dist/*",
+    "./package.json": "./package.json"
+  },
+  "keywords": [
+    "vue",
+    "vue2",
+    "answer-sheet",
+    "omr",
+    "exam",
+    "答题卡",
+    "education",
+    "pdf"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "docs",
+    "index.d.ts",
+    "core.d.ts",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && vite build --config vite.core.config.js && node scripts/sync-preview.mjs",
+    "prepublishOnly": "npm run build",
+    "preview": "vite preview",
+    "test:core": "esbuild scripts/verify-core.mjs --bundle --format=cjs --platform=node --outfile=.verify/core-check.cjs --log-level=warning && node .verify/core-check.cjs",
+    "verify:layouts": "node scripts/verify-layouts.mjs",
+    "verify:e2e": "node scripts/verify-e2e.mjs",
+    "verify:identity": "node scripts/verify-identity.mjs",
+    "verify:dialogs": "node scripts/verify-dialogs.mjs",
+    "verify:columns": "node scripts/verify-columns.mjs",
+    "verify:stress": "node scripts/verify-stress.mjs",
+    "verify:print": "node scripts/verify-print.mjs",
+    "verify:presets": "node scripts/verify-presets.mjs",
+    "verify:presets:print": "node scripts/verify-presets-print.mjs",
+    "audit:presets": "node scripts/audit-presets.mjs",
+    "verify:gaps": "node scripts/verify-gaps.mjs",
+    "verify:plugin": "node scripts/verify-plugin.mjs",
+    "verify:console": "node scripts/verify-console.mjs",
+    "verify:release": "node scripts/verify-release.mjs",
+    "verify:switch": "node scripts/verify-exam-switch.mjs",
+    "verify:narrow": "node scripts/verify-narrow.mjs",
+    "sync:preview": "node scripts/sync-preview.mjs",
+    "capture:docs": "node scripts/capture-docs.mjs"
+  },
+  "peerDependencies": {
+    "element-ui": "^2.15.14",
+    "vue": "^2.7.0"
+  },
+  "dependencies": {
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue2": "^2.3.1",
+    "element-ui": "^2.15.14",
+    "playwright-core": "^1.65.1",
+    "vite": "^5.4.10",
+    "vue": "^2.7.16"
+  }
+}

@@ -1,0 +1,17 @@
+node_modules/
+dist/
+dist-demo/
+.verify/
+*.local
+.DS_Store
+npm-debug.log*
+*.log
+
+# 构建产物副本（demo 页静态引用，npm run build 自动生成）
+public/preview/
+
+# 打包与编辑器产生的文件
+*.tgz
+.vite/
+.idea/
+.vscode/

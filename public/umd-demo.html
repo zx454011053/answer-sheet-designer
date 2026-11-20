@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <title>答题卡设计器 · UMD 独立引入示例</title>
+    <!-- 宿主已自带的依赖：Vue 2 + Element UI（生产环境换成你自己的 CDN） -->
+    <script src="/node_modules/vue/dist/vue.js"></script>
+    <link rel="stylesheet" href="/node_modules/element-ui/lib/theme-chalk/index.css" />
+    <script src="/node_modules/element-ui/lib/index.js"></script>
+    <!-- 设计器本体：UMD + 样式 -->
+    <link rel="stylesheet" href="/preview/answer-sheet-designer.css" />
+    <script src="/preview/answer-sheet-designer.umd.js"></script>
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      #designer {
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="designer"></div>
+    <script>
+      // 不注册全局组件也能用：直接 mount 到指定容器
+      window.designerHandle = AnswerSheetDesigner.mount('#designer', {
+        propsData: {
+          examId: 9901,
+          session: { name: 'UMD 引入示例', examNo: 'S20261119' },
+          dataSource: AnswerSheetDesigner.createLocalDataSource({ storageKey: 'answer-sheet-umd-demo' }),
+          showHeader: false
+        },
+        on: {
+          saved: function (payload) {
+            console.log('[umd-demo] saved', payload && payload.id);
+          }
+        }
+      });
+    </script>
+  </body>
+</html>
