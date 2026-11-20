@@ -1,5 +1,8 @@
 # 答题卡设计器（Answer Sheet Designer）
 
+[![CI](https://github.com/zx454011053/answer-sheet-designer/actions/workflows/ci.yml/badge.svg)](https://github.com/zx454011053/answer-sheet-designer/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 一个可嵌入的 **Vue 2 答题卡设计器插件**：老师在后台可视化排版答题卡，或者由宿主传一段 JSON 直接生成答题卡、打印、导出 PDF。不依赖路由、axios 和后端，只依赖 `vue@2` + `element-ui@2`。
 
 ---
