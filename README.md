@@ -706,6 +706,25 @@ const payload = buildSheetPayload(createDefaultSheetForm(sheet), questionBlocks)
 
 ---
 
+## 本地开发
+
+```bash
+npm install
+npm run dev        # http://localhost:5273/ 编辑器 demo（另有 /umd-demo.html、/plugin-content-demo.html、/readonly-demo.html）
+npm run build      # 产出 dist/，并同步副本到 public/preview/
+npm run test:core  # core 纯逻辑自检（38 项，不依赖浏览器）
+```
+
+浏览器回归脚本需要本机 Chromium（优先 `CHROME_PATH`，其次 playwright 缓存，最后系统 Chrome/Edge）：
+
+```bash
+npx playwright install chromium
+npm run verify:e2e        # 还有 verify:layouts / print / presets / release / narrow … 见 package.json
+npm run capture:docs      # 重新生成 docs/images 里的 README 截图
+```
+
+`dist/` 与 `public/preview/` 是构建产物，不入库；提交前跑一次 `npm run build && npm run test:core`。
+
 ## 注意事项
 
 - 题块 id 是前端自增，多端同时编辑需要宿主下发版本号做冲突控制。
